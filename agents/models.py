@@ -32,6 +32,7 @@ class AgentSpec:
     limits: dict[str, int] = field(default_factory=lambda: {"max_runtime_seconds": 900, "max_steps": 50, "max_retries": 3})
     verification: dict[str, Any] = field(default_factory=lambda: {"required": True})
     persistent: bool = False
+    metadata: dict[str, Any] = field(default_factory=dict)
     state: str = AgentState.CREATED
     created_at: str = field(default_factory=now)
     updated_at: str = field(default_factory=now)

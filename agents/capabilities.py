@@ -11,6 +11,13 @@ def available_capabilities(action_registry) -> set[str]:
         normalized = normalize_capability(name)
         capabilities.add(normalized)
         capabilities.add(normalized.replace(".", "."))
+    try:
+        from development.agent_registry import CodingAgentRegistry
+        for item in CodingAgentRegistry().available():
+            capabilities.add(f"coding.agent.{item['id']}")
+            capabilities.add(f"coding_agent.{item['id']}")
+    except Exception:
+        pass
     return capabilities
 
 

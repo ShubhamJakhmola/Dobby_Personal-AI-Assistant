@@ -26,7 +26,7 @@ class AgentFactory:
     def create_spec(self, purpose: str, *, parent_task_id: str = "", name: str = "worker",
                     agent_type: str = "temporary", capabilities: list[str] | None = None,
                     brain_requirements: dict | None = None, context_requirements: dict | None = None,
-                    limits: dict | None = None, persistent: bool = False) -> dict:
+                    limits: dict | None = None, persistent: bool = False, metadata: dict | None = None) -> dict:
         capabilities = capabilities or []
         missing = missing_capabilities(capabilities, self.action_registry)
         if missing:
@@ -36,7 +36,7 @@ class AgentFactory:
                          purpose, agent_type, parent_task_id, capabilities,
                          brain_requirements or {}, {}, context_requirements or {},
                          limits or {"max_runtime_seconds": 900, "max_steps": 50, "max_retries": 3},
-                         {"required": True}, persistent=persistent)
+                         {"required": True}, persistent=persistent, metadata=metadata or {})
         valid, reason = validate_agent_scope(spec, self.action_registry)
         if not valid:
             return {"success": False, "status": "failed", "error_category": "policy_denied", "error": reason}
@@ -52,3 +52,20 @@ class AgentFactory:
         if self.agent_registry:
             self.agent_registry.register(spec)
         return {"success": True, "status": "created", "spec": spec.as_dict()}
+
+    def create_coding_spec(self, purpose: str, coding_agent_id: str, *, parent_task_id: str = "",
+                           limits: dict | None = None) -> dict:
+        from development.agent_registry import CodingAgentRegistry
+        registry = CodingAgentRegistry()
+        agent = registry.get(coding_agent_id)
+        if not agent:
+            return {"success": False, "status": "failed", "error_category": "coding_agent_not_found",
+                    "error": f"coding agent not found: {coding_agent_id}"}
+        if not agent.get("available"):
+            return {"success": False, "status": "failed", "error_category": "coding_agent_unavailable",
+                    "error": f"coding agent is {agent.get('status', 'UNKNOWN')}", "agent": agent}
+        return self.create_spec(purpose, parent_task_id=parent_task_id, name=f"coding_{coding_agent_id}",
+                                agent_type="temporary", capabilities=[f"coding_agent.{coding_agent_id}"],
+                                brain_requirements={"task_type": "coding", "capabilities": ["reasoning"], "privacy": "local"},
+                                limits=limits or {"max_runtime_seconds": 900, "max_steps": 20, "max_retries": 2},
+                                persistent=False, metadata={"coding_agent_id": coding_agent_id, "executable": agent.get("executable", "")})

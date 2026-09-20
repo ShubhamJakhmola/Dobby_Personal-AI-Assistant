@@ -33,6 +33,9 @@ from PyQt6.QtWidgets import (
     QStackedWidget, QTextEdit, QVBoxLayout, QWidget, QProgressBar,
 )
 from brain.manager import ProviderManager
+from development.agent_detector import AgentDetector
+from development.agent_registry import CodingAgentRegistry
+from development.workspace import WorkspaceManager
 
 try:
     from core.avatar import HoloAvatar
@@ -1866,6 +1869,95 @@ class BrainProvidersOverlay(QWidget):
             label.setStyleSheet(f"color:{C.TEXT}; background:transparent;"); layout.addWidget(label, 1)
             test = QPushButton("TEST"); test.clicked.connect(lambda _, p=item["provider"]: self._test(p)); layout.addWidget(test)
             self._rows.addWidget(row)
+
+
+class CodingAgentsOverlay(QWidget):
+    """Read-only external coding-agent status for the settings drawer."""
+    _OW, _OH = 560, 520
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
+        self.setStyleSheet(f"CodingAgentsOverlay {{ background: rgba(0, 6, 10, 248); border: 1px solid {C.BORDER_B}; border-radius: 6px; }}")
+        self.setFixedSize(self._OW, self._OH)
+        root = QVBoxLayout(self); root.setContentsMargins(20, 16, 20, 16); root.setSpacing(7)
+        title = QLabel("CODING AGENTS")
+        title.setFont(QFont("Courier New", 12, QFont.Weight.Bold)); title.setStyleSheet(f"color:{C.PRI}; background:transparent;")
+        root.addWidget(title)
+        self._summary = QLabel(); self._summary.setWordWrap(True); self._summary.setStyleSheet(f"color:{C.TEXT_DIM}; background:transparent;")
+        root.addWidget(self._summary)
+        self._rows = QVBoxLayout(); self._rows.setSpacing(5); root.addLayout(self._rows, 1)
+        buttons = QHBoxLayout()
+        refresh = QPushButton("REFRESH"); refresh.clicked.connect(self.refresh); buttons.addWidget(refresh)
+        detect = QPushButton("DETECT"); detect.clicked.connect(self.refresh); buttons.addWidget(detect)
+        test = QPushButton("TEST"); test.clicked.connect(self._test_available); buttons.addWidget(test)
+        close = QPushButton("CLOSE"); close.clicked.connect(self.hide); buttons.addWidget(close)
+        root.addLayout(buttons)
+        self.refresh()
+
+    def _test_available(self):
+        data = AgentDetector().status()
+        available = [item["name"] for item in data.get("agents", []) if item.get("available")]
+        self._summary.setText(f"Available: {', '.join(available) if available else 'none'} | No prompts executed.")
+
+    def refresh(self):
+        while self._rows.count():
+            item = self._rows.takeAt(0); widget = item.widget()
+            if widget: widget.deleteLater()
+        data = AgentDetector().status()
+        self._summary.setText(
+            f"Discovered: {data.get('discovered', 0)} | Installed: {data.get('installed', 0)} | "
+            f"Configured: {data.get('configured', 0)} | Available: {data.get('available', 0)}"
+        )
+        for item in data.get("agents", []):
+            row = QFrame(); layout = QVBoxLayout(row); layout.setContentsMargins(6, 4, 6, 4)
+            label = QLabel(
+                f"{item.get('name')} | {item.get('provider')} | {item.get('status')}\n"
+                f"Version: {item.get('version') or 'unknown'}\n"
+                f"Executable: {item.get('executable') or 'not detected'}\n"
+                f"Workspace: {item.get('workspace_support')} | Headless: {item.get('headless_support')} | Adapter: {item.get('adapter')}"
+            )
+            label.setWordWrap(True); label.setStyleSheet(f"color:{C.TEXT}; background:transparent;")
+            layout.addWidget(label)
+            self._rows.addWidget(row)
+
+
+class BuildModeOverlay(QWidget):
+    _OW, _OH = 520, 420
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
+        self.setStyleSheet(f"BuildModeOverlay {{ background: rgba(0, 6, 10, 248); border: 1px solid {C.BORDER_B}; border-radius: 6px; }}")
+        self.setFixedSize(self._OW, self._OH)
+        root = QVBoxLayout(self); root.setContentsMargins(20, 16, 20, 16); root.setSpacing(7)
+        title = QLabel("BUILD MODE")
+        title.setFont(QFont("Courier New", 12, QFont.Weight.Bold)); title.setStyleSheet(f"color:{C.PRI}; background:transparent;")
+        root.addWidget(title)
+        self._summary = QLabel(); self._summary.setWordWrap(True); self._summary.setStyleSheet(f"color:{C.TEXT}; background:transparent;")
+        root.addWidget(self._summary)
+        self._projects = QVBoxLayout(); self._projects.setSpacing(5); root.addLayout(self._projects, 1)
+        buttons = QHBoxLayout()
+        refresh = QPushButton("REFRESH"); refresh.clicked.connect(self.refresh); buttons.addWidget(refresh)
+        close = QPushButton("CLOSE"); close.clicked.connect(self.hide); buttons.addWidget(close)
+        root.addLayout(buttons)
+        self.refresh()
+
+    def refresh(self):
+        while self._projects.count():
+            item = self._projects.takeAt(0); widget = item.widget()
+            if widget: widget.deleteLater()
+        manager = WorkspaceManager()
+        projects = manager.list_projects()
+        available = len(CodingAgentRegistry().available())
+        self._summary.setText(
+            f"Enabled: yes\nProjects: {len(projects)}\nActive workflows: 0\n"
+            f"Available coding agents: {available}\nDefault repair limit: 3"
+        )
+        for project in projects[:8]:
+            label = QLabel(f"{project.get('name')} | {project.get('status')} | {project.get('path')}")
+            label.setWordWrap(True); label.setStyleSheet(f"color:{C.TEXT_DIM}; background:transparent;")
+            self._projects.addWidget(label)
 
 
 class PluginManagerOverlay(QWidget):
@@ -4045,6 +4137,22 @@ class MainWindow(QMainWindow):
         brains_btn.clicked.connect(self._open_brain_providers)
         lay.addWidget(brains_btn)
 
+        coding_btn = QPushButton("CODING AGENTS")
+        coding_btn.setFixedHeight(26)
+        coding_btn.setFont(QFont("Courier New", 7))
+        coding_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        coding_btn.setStyleSheet(_BTN_STYLE_DIM)
+        coding_btn.clicked.connect(self._open_coding_agents)
+        lay.addWidget(coding_btn)
+
+        build_btn = QPushButton("BUILD MODE")
+        build_btn.setFixedHeight(26)
+        build_btn.setFont(QFont("Courier New", 7))
+        build_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        build_btn.setStyleSheet(_BTN_STYLE_DIM)
+        build_btn.clicked.connect(self._open_build_mode)
+        lay.addWidget(build_btn)
+
         plugin_btn = QPushButton("🧩  PLUGINS")
         plugin_btn.setFixedHeight(26)
         plugin_btn.setFont(QFont("Courier New", 7))
@@ -5108,6 +5216,16 @@ class MainWindow(QMainWindow):
         ov = BrainProvidersOverlay(parent=self.centralWidget())
         self._centre_overlay(ov)
         self._brain_overlay = ov
+
+    def _open_coding_agents(self):
+        ov = CodingAgentsOverlay(parent=self.centralWidget())
+        self._centre_overlay(ov)
+        self._coding_agents_overlay = ov
+
+    def _open_build_mode(self):
+        ov = BuildModeOverlay(parent=self.centralWidget())
+        self._centre_overlay(ov)
+        self._build_mode_overlay = ov
 
     # ── Irreversible-action confirmation ─────────────────────────────────────
 

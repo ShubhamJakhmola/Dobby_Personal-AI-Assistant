@@ -13,6 +13,10 @@ from brain.budgets import BudgetManager
 from brain.usage import UsageTracker
 from agents.registry import AgentRegistry
 from acquisition.registry import AcquisitionRegistry
+from development.agent_detector import AgentDetector
+from development.workspace import WorkspaceManager
+from development.agent_registry import CodingAgentRegistry
+from remote.device_registry import DeviceRegistry
 
 
 def collect_environment() -> dict:
@@ -44,11 +48,23 @@ def collect_environment() -> dict:
             "usage_tracking": "available",
             "budget_manager": "available",
         },
+        "mcp": {"enabled": False, "providers": [], "external_capabilities": 0},
         "agents": AgentRegistry().status(),
         "acquisition": {"discovery": "available", "github_discovery": "available",
                 "sandbox": "workspace_only", "evaluator": "available",
                 "adapter_system": "available", "acquired_capabilities": 0,
                 "pending_candidates": len(AcquisitionRegistry().list())},
+        "coding_agents": AgentDetector().status(),
+        "coding_workspace": WorkspaceManager().status(),
+        "agent_adapters": {"loaded": ["aider", "codex", "copilot", "claude_code", "gemini_cli"],
+                           "available": AgentDetector().status().get("available", 0), "errors": []},
+        "build_mode": {"enabled": True, "workflows": len(WorkspaceManager().list_projects()),
+                       "active_workflows": 0, "repair_limit_default": 3,
+                       "available_coding_agents": len(CodingAgentRegistry().available()),
+                       "projects": len(WorkspaceManager().list_projects())},
+        "remote_core": {"enabled": True, "transport": "in-memory", "secure_mode": "development",
+                        "connected_devices": DeviceRegistry().status().get("online", 0), "tls_state": "development"},
+        "devices": DeviceRegistry().status(),
     })
     return info
 
@@ -104,8 +120,45 @@ def format_report(data: dict) -> str:
     for profile in brain.get("providers", []):
         lines.append(f"  {profile.get('provider_id')}: {'available' if profile.get('available') else 'unavailable/unconfigured'}")
     lines.extend(["  usage tracking: available", "  budget manager: available"])
+    mcp = env.get("mcp") or {}
+    lines.extend(["", "External MCP:",
+                  f"  enabled: {mcp.get('enabled', False)}",
+                  f"  providers: {len(mcp.get('providers', []))}",
+                  f"  external capabilities: {mcp.get('external_capabilities', 0)}"])
     acquisition = env.get("acquisition") or {}
     lines.extend(["", "Capability Acquisition:"])
     for key, value in acquisition.items():
         lines.append(f"  {key.replace('_', ' ')}: {value}")
+    coding = env.get("coding_agents") or {}
+    workspace = env.get("coding_workspace") or {}
+    lines.extend(["", "Coding Agents:",
+                  f"  discovered: {coding.get('discovered', 0)}",
+                  f"  installed: {coding.get('installed', 0)}",
+                  f"  configured: {coding.get('configured', 0)}",
+                  f"  available: {coding.get('available', 0)}",
+                  f"  unavailable: {coding.get('unavailable', 0)}",
+                  "Coding Workspace:",
+                  f"  root: {workspace.get('root', '')}",
+                  f"  writable: {workspace.get('writable', False)}",
+                  f"  valid: {workspace.get('valid', False)}"])
+    build = env.get("build_mode") or {}
+    lines.extend(["", "Build Mode:",
+                  f"  enabled: {build.get('enabled', False)}",
+                  f"  workflows: {build.get('workflows', 0)}",
+                  f"  active workflows: {build.get('active_workflows', 0)}",
+                  f"  repair limit default: {build.get('repair_limit_default', 3)}",
+                  f"  available coding agents: {build.get('available_coding_agents', 0)}",
+                  f"  projects: {build.get('projects', 0)}"])
+    remote = env.get("remote_core") or {}
+    lines.extend(["", "Remote Core:",
+                  f"  enabled: {remote.get('enabled', False)}",
+                  f"  transport: {remote.get('transport', 'unknown')}",
+                  f"  secure mode: {remote.get('secure_mode', 'development')}",
+                  f"  connected devices: {remote.get('connected_devices', 0)}"])
+    devices = env.get("devices") or {}
+    lines.extend(["", "Devices:",
+                  f"  total: {devices.get('total', 0)}",
+                  f"  online: {devices.get('online', 0)}",
+                  f"  offline: {devices.get('offline', 0)}",
+                  f"  revoked: {devices.get('revoked', 0)}"])
     return "\n".join(lines)
