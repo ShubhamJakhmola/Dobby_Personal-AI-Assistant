@@ -12,6 +12,7 @@ from brain.defaults import create_registry
 from brain.budgets import BudgetManager
 from brain.usage import UsageTracker
 from agents.registry import AgentRegistry
+from acquisition.registry import AcquisitionRegistry
 
 
 def collect_environment() -> dict:
@@ -44,6 +45,10 @@ def collect_environment() -> dict:
             "budget_manager": "available",
         },
         "agents": AgentRegistry().status(),
+        "acquisition": {"discovery": "available", "github_discovery": "available",
+                "sandbox": "workspace_only", "evaluator": "available",
+                "adapter_system": "available", "acquired_capabilities": 0,
+                "pending_candidates": len(AcquisitionRegistry().list())},
     })
     return info
 
@@ -99,4 +104,8 @@ def format_report(data: dict) -> str:
     for profile in brain.get("providers", []):
         lines.append(f"  {profile.get('provider_id')}: {'available' if profile.get('available') else 'unavailable/unconfigured'}")
     lines.extend(["  usage tracking: available", "  budget manager: available"])
+    acquisition = env.get("acquisition") or {}
+    lines.extend(["", "Capability Acquisition:"])
+    for key, value in acquisition.items():
+        lines.append(f"  {key.replace('_', ' ')}: {value}")
     return "\n".join(lines)

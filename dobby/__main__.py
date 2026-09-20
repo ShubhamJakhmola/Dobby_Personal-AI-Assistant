@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import sys
+from pathlib import Path
 
 from computer.diagnostics import collect_environment, format_report, run_live_validation
 from memory.commands import handle as memory_command
@@ -55,6 +56,25 @@ def main() -> int:
         from agents.registry import AgentRegistry
         print(json.dumps(AgentRegistry().status(), indent=2))
         return 0
+    if command == "acquire":
+        from acquisition.manager import AcquisitionManager
+        from core.action_loader import discover_actions
+        actions = discover_actions(Path(__file__).resolve().parent.parent / "actions", logger=lambda _: None)
+        manager = AcquisitionManager(actions)
+        subcommand = sys.argv[2] if len(sys.argv) > 2 else "status"
+        if subcommand == "status":
+            print(json.dumps({"discovery": "available", "sandbox": "workspace_only",
+                              "candidates": manager.registry.list()}, indent=2)); return 0
+        if subcommand == "candidates":
+            print(json.dumps(manager.registry.list(), indent=2)); return 0
+        if subcommand == "search" and len(sys.argv) > 3:
+            print(json.dumps(manager.search(" ".join(sys.argv[3:])), indent=2)); return 0
+        if subcommand == "dry-run" and len(sys.argv) > 3:
+            print(json.dumps(manager.dry_run(" ".join(sys.argv[3:])), indent=2)); return 0
+        if subcommand == "cleanup":
+            print(json.dumps(manager.cleanup(), indent=2)); return 0
+        print("Usage: python -m dobby acquire status|search <query>|candidates|dry-run <capability>|cleanup", file=sys.stderr)
+        return 2
     print("Usage: python -m dobby diagnostics | validate-linux | memory <command> | context", file=sys.stderr)
     return 2
 

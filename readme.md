@@ -69,6 +69,14 @@ Phase 7 adds a bounded worker layer under `agents/`. Dobby creates an agent only
 
 Agents never receive direct OS authority. They produce recommendations or worker results that return to Dobby for policy, confirmation, execution, verification, recovery, and audit. Temporary agents are removed after destruction; persistent agents are retained only when explicitly requested. Inspect the current worker registry with `python -m dobby agents`. Dynamic agent creation, repository acquisition, remote clients, and autonomous build orchestration remain future work.
 
+## Capability acquisition
+
+Phase 8 adds a controlled open-source capability discovery pipeline. Dobby checks the existing action registry first, creates a structured capability gap only when the capability is genuinely missing, and can perform factual public GitHub metadata discovery without installing anything. Candidate evaluation inspects licenses, dependency manifests, and obvious suspicious setup/runtime indicators; it does not assign a quality score or claim security from static inspection.
+
+Candidate source is kept outside Dobby core under the local acquisition workspace. Tests run with a minimal secret-free environment, bounded timeouts, and network disabled by default. The current sandbox strength is `workspace_only`, not strong OS isolation. Approval is separate from discovery/evaluation, failed or unapproved candidates cannot register adapters, versions/commits are recorded where available, and temporary workspaces can be cleaned without removing approved evidence. Open source is not automatically trusted, and passing tests is not proof of safety.
+
+Safe commands include `python -m dobby acquire status`, `python -m dobby acquire search "pdf table extraction"`, `python -m dobby acquire candidates`, `python -m dobby acquire dry-run "pdf table extraction"`, and `python -m dobby acquire cleanup`. GitHub access is optional and no live repository discovery is required by tests. No automatic installation, repository updates, Dobby-core modification, or hidden approval occurs.
+
 Run environment diagnostics with `python -m dobby diagnostics`. On an actual Linux desktop, run `python -m dobby validate-linux` for safe monitor, screen, window, and application observation checks. The validator never installs dependencies, types, clicks, or permanently stores screenshots. This workspace currently reports Linux live validation as unavailable because it is running on Windows.
 
 It ships as **zero extra dependencies and one 25 KB asset**. The face is real measured human geometry; everything else — the skull, the rig, the lighting — is generated at startup and drawn in software, so it looks identical on a gaming rig and a 2013 laptop, with no GPU driver in the loop.
