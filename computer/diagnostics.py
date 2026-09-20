@@ -8,6 +8,10 @@ from computer.linux import applications, clipboard, keyboard, mouse, screen, win
 from computer.platform import environment
 from memory.storage import memory_root
 from memory.task_state import TaskStateStore
+from brain.defaults import create_registry
+from brain.budgets import BudgetManager
+from brain.usage import UsageTracker
+from agents.registry import AgentRegistry
 
 
 def collect_environment() -> dict:
@@ -33,6 +37,13 @@ def collect_environment() -> dict:
             "project_context": "available",
             "path": str(memory_root()),
         },
+        "brain": {
+            "master_provider": "gemini",
+            "providers": create_registry().list(),
+            "usage_tracking": "available",
+            "budget_manager": "available",
+        },
+        "agents": AgentRegistry().status(),
     })
     return info
 
@@ -83,4 +94,9 @@ def format_report(data: dict) -> str:
     for key, value in (env.get("memory") or {}).items():
         if key != "path":
             lines.append(f"  {key.replace('_', ' ')}: {value}")
+    brain = env.get("brain") or {}
+    lines.extend(["", "Brain:", f"  master provider: {brain.get('master_provider', 'gemini')}"])
+    for profile in brain.get("providers", []):
+        lines.append(f"  {profile.get('provider_id')}: {'available' if profile.get('available') else 'unavailable/unconfigured'}")
+    lines.extend(["  usage tracking: available", "  budget manager: available"])
     return "\n".join(lines)

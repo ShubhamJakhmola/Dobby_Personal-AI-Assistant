@@ -51,6 +51,24 @@ Dobby keeps five separate local concepts:
 
 Safe inspection commands include `python -m dobby memory status`, `python -m dobby memory list`, `python -m dobby memory search <terms>`, and `python -m dobby context`. Use `clear current context` for temporary context; long-term records can be deleted by id. Multi-brain routing, cloud memory, remote memory, and autonomous agent memory are planned interfaces only, not implemented features.
 
+## Multi-brain architecture
+
+Gemini remains Dobby's **master brain**. The Phase 6 `brain/` package adds a provider contract, registry, context broker, deliberate router, usage tracker, and internal budget manager. Specialist providers are workers that return recommendations or analysis; they never receive OS authority and never bypass Dobby's policy, confirmation, execution, verification, recovery, or audit layers.
+
+Routing is intentional, not a fallback chain. Dobby evaluates task capabilities, privacy, structured-output needs, context capacity, availability, preferences, and internal budget before selecting a provider. A provider failure is returned as a structured failure; Dobby does not silently switch from Gemini to Groq or another provider. Gemini, Ollama, Groq, and OpenRouter profiles are represented, but only the existing Gemini adapter is functional when its key is configured. Other adapters report unavailable without making network calls or installing models.
+
+Each request receives a bounded Phase 5 `ContextPacket` containing only relevant current context, history, memory, task state, and project context. Usage records distinguish provider-reported token counts from local estimates. Budget limits are Dobby-local accounting and do not claim to represent a provider's actual quota.
+
+Inspect the brain layer with `python -m dobby brain status`, `python -m dobby brain list`, `python -m dobby brain usage`, or `python -m dobby brain route --dry-run "classify these logs"`. Future multi-agent routing, dynamic agent creation, MCP, remote clients, and autonomous build orchestration are not implemented yet.
+
+The existing settings drawer includes **AI / BRAINS**. It shows the master and specialist provider states, model selections, routing mode, refresh/test controls, and masked configuration fields. Provider configuration stores only non-secret settings in `~/.dobby/brain.json`; API keys use environment variables or an optional OS keyring and are never returned by status, diagnostics, memory, context packets, audit records, or UI debug output. Gemini remains the default master and is never replaced automatically when another provider becomes available.
+
+## Dynamic agents
+
+Phase 7 adds a bounded worker layer under `agents/`. Dobby creates an agent only for tasks that need investigation, research, review, analysis, multiple capabilities, or high complexity. Simple commands and direct file operations remain direct execution. Each `AgentSpec` declares its capabilities, context requirements, brain requirements, limits, verification requirement, and temporary/persistent lifecycle. The factory validates capabilities against the existing action registry and selects a brain through the existing BrainRouter.
+
+Agents never receive direct OS authority. They produce recommendations or worker results that return to Dobby for policy, confirmation, execution, verification, recovery, and audit. Temporary agents are removed after destruction; persistent agents are retained only when explicitly requested. Inspect the current worker registry with `python -m dobby agents`. Dynamic agent creation, repository acquisition, remote clients, and autonomous build orchestration remain future work.
+
 Run environment diagnostics with `python -m dobby diagnostics`. On an actual Linux desktop, run `python -m dobby validate-linux` for safe monitor, screen, window, and application observation checks. The validator never installs dependencies, types, clicks, or permanently stores screenshots. This workspace currently reports Linux live validation as unavailable because it is running on Windows.
 
 It ships as **zero extra dependencies and one 25 KB asset**. The face is real measured human geometry; everything else — the skull, the rig, the lighting — is generated at startup and drawn in software, so it looks identical on a gaming rig and a 2013 laptop, with no GPU driver in the loop.

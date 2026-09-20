@@ -32,6 +32,7 @@ from PyQt6.QtWidgets import (
     QMainWindow, QPushButton, QScrollArea, QSizePolicy, QSplitter,
     QStackedWidget, QTextEdit, QVBoxLayout, QWidget, QProgressBar,
 )
+from brain.manager import ProviderManager
 
 try:
     from core.avatar import HoloAvatar
@@ -1806,6 +1807,65 @@ class CustomizeOverlay(QWidget):
         user = self._user_input.text().strip()
         self.saved.emit(name, user, self._sel_color or DEFAULT_UI_COLOR, self._sel_voice)
         self.hide()
+
+
+class BrainProvidersOverlay(QWidget):
+    """Safe provider status/configuration surface for the existing settings drawer."""
+    _OW, _OH = 520, 560
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.manager = ProviderManager()
+        self.setAttribute(Qt.WidgetAttribute.WA_StyledBackground, True)
+        self.setStyleSheet(f"BrainProvidersOverlay {{ background: rgba(0, 6, 10, 248); border: 1px solid {C.BORDER_B}; border-radius: 6px; }}")
+        self.setFixedSize(self._OW, self._OH)
+        root = QVBoxLayout(self); root.setContentsMargins(20, 16, 20, 16); root.setSpacing(7)
+        title = QLabel("◈  AI / BRAINS")
+        title.setFont(QFont("Courier New", 12, QFont.Weight.Bold)); title.setStyleSheet(f"color:{C.PRI}; background:transparent;")
+        root.addWidget(title)
+        self._master = QLabel(); self._master.setStyleSheet(f"color:{C.TEXT}; background:transparent;"); root.addWidget(self._master)
+        self._routing = QLabel("Routing: capability based | Automatic fallback: disabled | Usage: tracked by runtime")
+        self._routing.setWordWrap(True); self._routing.setStyleSheet(f"color:{C.TEXT_DIM}; background:transparent;"); root.addWidget(self._routing)
+        self._rows = QVBoxLayout(); self._rows.setSpacing(5); root.addLayout(self._rows)
+
+        form = QFrame(); form.setStyleSheet(f"QFrame {{ border:1px solid {C.BORDER}; background:{C.PANEL2}; }}")
+        form_lay = QVBoxLayout(form); form_lay.setContentsMargins(10, 8, 10, 8)
+        form_title = QLabel("CONFIGURE PROVIDER"); form_title.setStyleSheet(f"color:{C.TEXT_DIM}; background:transparent;"); form_lay.addWidget(form_title)
+        self._provider = QComboBox(); self._provider.addItems(["gemini", "ollama", "groq", "openrouter"]); form_lay.addWidget(self._provider)
+        self._model = QLineEdit(); self._model.setPlaceholderText("Default model (optional)"); form_lay.addWidget(self._model)
+        self._key = QLineEdit(); self._key.setPlaceholderText("API key (never displayed after entry)"); self._key.setEchoMode(QLineEdit.EchoMode.Password); form_lay.addWidget(self._key)
+        apply_btn = QPushButton("▸  SAVE CONFIGURATION"); apply_btn.clicked.connect(self._configure); form_lay.addWidget(apply_btn)
+        root.addWidget(form)
+        self._message = QLabel(); self._message.setWordWrap(True); self._message.setStyleSheet(f"color:{C.TEXT_DIM}; background:transparent;"); root.addWidget(self._message)
+        buttons = QHBoxLayout()
+        refresh = QPushButton("↻  REFRESH"); refresh.clicked.connect(self.refresh); buttons.addWidget(refresh)
+        close = QPushButton("CLOSE"); close.clicked.connect(self.hide); buttons.addWidget(close)
+        root.addLayout(buttons)
+        self.refresh()
+
+    def _configure(self):
+        result = self.manager.configure_provider(self._provider.currentText(), model=self._model.text().strip(), api_key=self._key.text())
+        self._key.clear()
+        self._message.setText(result.get("error", "Configuration saved without exposing secrets."))
+        self.refresh()
+
+    def _test(self, provider: str):
+        result = self.manager.test_provider(provider)
+        self._message.setText(f"{provider}: {result.get('status')} - {result.get('reason', '')}")
+
+    def refresh(self):
+        while self._rows.count():
+            item = self._rows.takeAt(0); widget = item.widget()
+            if widget: widget.deleteLater()
+        statuses = self.manager.list_providers()
+        master_status = next((item["status"] for item in statuses if item["provider"] == "gemini"), "unavailable")
+        self._master.setText(f"MASTER BRAIN\n  Gemini  |  {master_status}")
+        for item in statuses:
+            row = QFrame(); layout = QHBoxLayout(row); layout.setContentsMargins(6, 3, 6, 3)
+            label = QLabel(f"{item['provider'].title()}  |  {item['role']}  |  {item['status']}\nModel: {item.get('model') or 'not selected'}")
+            label.setStyleSheet(f"color:{C.TEXT}; background:transparent;"); layout.addWidget(label, 1)
+            test = QPushButton("TEST"); test.clicked.connect(lambda _, p=item["provider"]: self._test(p)); layout.addWidget(test)
+            self._rows.addWidget(row)
 
 
 class PluginManagerOverlay(QWidget):
@@ -3977,6 +4037,14 @@ class MainWindow(QMainWindow):
         mem_btn.clicked.connect(self._open_memory_panel)
         lay.addWidget(mem_btn)
 
+        brains_btn = QPushButton("◈  AI / BRAINS")
+        brains_btn.setFixedHeight(26)
+        brains_btn.setFont(QFont("Courier New", 7))
+        brains_btn.setCursor(Qt.CursorShape.PointingHandCursor)
+        brains_btn.setStyleSheet(_BTN_STYLE_DIM)
+        brains_btn.clicked.connect(self._open_brain_providers)
+        lay.addWidget(brains_btn)
+
         plugin_btn = QPushButton("🧩  PLUGINS")
         plugin_btn.setFixedHeight(26)
         plugin_btn.setFont(QFont("Courier New", 7))
@@ -5035,6 +5103,11 @@ class MainWindow(QMainWindow):
         ov = MemoryOverlay(parent=self.centralWidget())
         self._centre_overlay(ov)
         self._memory_overlay = ov
+
+    def _open_brain_providers(self):
+        ov = BrainProvidersOverlay(parent=self.centralWidget())
+        self._centre_overlay(ov)
+        self._brain_overlay = ov
 
     # ── Irreversible-action confirmation ─────────────────────────────────────
 
