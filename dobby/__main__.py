@@ -56,7 +56,7 @@ def main() -> int:
         from mcp.provider import MCPRegistry, ControlledMCPProvider
         registry = MCPRegistry()
         subcommand = sys.argv[2] if len(sys.argv) > 2 else "status"
-        if subcommand == "status":
+        if subcommand in {"status", "list"}:
             providers = []
             for name, provider in registry._providers.items():
                 providers.append({"name": name, "capabilities": provider.capabilities()})
@@ -65,7 +65,7 @@ def main() -> int:
             name = sys.argv[3]
             registry.register(ControlledMCPProvider(name, {}))
             print(json.dumps({"registered": True, "provider": name, "capabilities": []}, indent=2)); return 0
-        print("Usage: python -m dobby mcp status|register <provider>", file=sys.stderr); return 2
+        print("Usage: python -m dobby mcp status|list|register <provider>", file=sys.stderr); return 2
     if command == "agents":
         from agents.registry import AgentRegistry
         print(json.dumps(AgentRegistry().status(), indent=2))
@@ -187,6 +187,41 @@ def main() -> int:
         if subcommand == "cleanup":
             print(json.dumps(manager.cleanup(), indent=2)); return 0
         print("Usage: python -m dobby acquire status|search <query>|candidates|dry-run <capability>|cleanup", file=sys.stderr)
+        return 2
+    if command == "goal":
+        from autonomous.goal_manager import GoalManager
+        manager = GoalManager()
+        subcommand = sys.argv[2] if len(sys.argv) > 2 else "status"
+        dry_run = "--dry-run" in sys.argv
+        args = [a for a in sys.argv[3:] if a != "--dry-run"]
+        if subcommand == "status":
+            goal_id = args[0] if args else None
+            print(json.dumps(manager.status(goal_id), indent=2)); return 0
+        if subcommand == "list":
+            print(json.dumps({"goals": manager.list_goals()}, indent=2)); return 0
+        if subcommand == "create" and args:
+            goal = manager.create_goal(" ".join(args))
+            print(json.dumps(goal.as_dict(), indent=2)); return 0
+        if subcommand == "run" and args:
+            raw = " ".join(args)
+            try:
+                goal = manager.create_goal(raw)
+                target_id = goal.goal_id
+            except Exception:
+                target_id = raw
+            res = manager.run_goal(target_id, dry_run=dry_run)
+            print(json.dumps(res, indent=2)); return 0
+        if subcommand == "pause" and args:
+            print(json.dumps(manager.pause_goal(args[0]), indent=2)); return 0
+        if subcommand == "resume" and args:
+            print(json.dumps(manager.resume_goal(args[0]), indent=2)); return 0
+        if subcommand == "cancel" and args:
+            print(json.dumps(manager.cancel_goal(args[0]), indent=2)); return 0
+        if subcommand == "inspect" and args:
+            print(json.dumps(manager.inspect_goal(args[0]), indent=2)); return 0
+        if subcommand == "history" and args:
+            print(json.dumps({"history": manager.history(args[0])}, indent=2)); return 0
+        print("Usage: python -m dobby goal status [id]|list|create <req>|run <req|id> [--dry-run]|pause|resume|cancel|inspect|history <id>", file=sys.stderr)
         return 2
     print("Usage: python -m dobby diagnostics | validate-linux | memory <command> | context", file=sys.stderr)
     return 2

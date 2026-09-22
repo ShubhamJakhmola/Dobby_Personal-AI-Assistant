@@ -59,6 +59,10 @@ Routing is intentional, not a fallback chain. Dobby evaluates task capabilities,
 
 Each request receives a bounded Phase 5 `ContextPacket` containing only relevant current context, history, memory, task state, and project context. Usage records distinguish provider-reported token counts from local estimates. Budget limits are Dobby-local accounting and do not claim to represent a provider's actual quota.
 
+## Controlled MCP acquisition
+
+Phase 18 extends the Phase 8 acquisition boundary for MCP candidates. MCP discovery, license/dependency inspection, static security evidence, real local stdio protocol validation, pinning review, explicit approval, enablement, and revocation remain separate lifecycle steps. A discovered MCP server is not trusted or executable by default. Network MCP, automatic downloads/installations, marketplaces, remote MCP tunneling, and production third-party MCP deployments are not implemented.
+
 Inspect the brain layer with `python -m dobby brain status`, `python -m dobby brain list`, `python -m dobby brain usage`, or `python -m dobby brain route --dry-run "classify these logs"`. Future multi-agent routing, dynamic agent creation, MCP, remote clients, and autonomous build orchestration are not implemented yet.
 
 The existing settings drawer includes **AI / BRAINS**. It shows the master and specialist provider states, model selections, routing mode, refresh/test controls, and masked configuration fields. Provider configuration stores only non-secret settings in `~/.dobby/brain.json`; API keys use environment variables or an optional OS keyring and are never returned by status, diagnostics, memory, context packets, audit records, or UI debug output. Gemini remains the default master and is never replaced automatically when another provider becomes available.

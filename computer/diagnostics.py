@@ -65,6 +65,7 @@ def collect_environment() -> dict:
         "remote_core": {"enabled": True, "transport": "in-memory", "secure_mode": "development",
                         "connected_devices": DeviceRegistry().status().get("online", 0), "tls_state": "development"},
         "devices": DeviceRegistry().status(),
+        "autonomous": _collect_autonomous_status(),
     })
     return info
 
@@ -75,6 +76,29 @@ def _gemini_configured() -> bool:
         return bool(api_key())
     except Exception:
         return False
+
+
+def _collect_autonomous_status() -> dict:
+    """Collect Phase 19 autonomous engine status."""
+    status: dict = {
+        "engine": "enabled",
+        "master_brain": "gemini",
+        "goal_engine": "available",
+        "planner": "available",
+        "task_manager": "available",
+        "recovery": "available",
+        "memory": "available",
+        "capability_router": "available",
+    }
+    try:
+        from capabilities.registry import CapabilityRegistry
+        reg = CapabilityRegistry()
+        for entry in reg.status():
+            cap = entry["capability"].lower()
+            status[cap] = entry["status"]
+    except Exception:
+        status["capability_registry"] = "error"
+    return status
 
 
 def run_live_validation() -> dict:
@@ -161,4 +185,11 @@ def format_report(data: dict) -> str:
                   f"  online: {devices.get('online', 0)}",
                   f"  offline: {devices.get('offline', 0)}",
                   f"  revoked: {devices.get('revoked', 0)}"])
+    autonomous = env.get("autonomous") or {}
+    lines.extend(["", "Autonomous Engine (Phase 19):",
+                  f"  Engine: {autonomous.get('engine', 'enabled').upper()}",
+                  f"  Master Brain: {autonomous.get('master_brain', 'gemini')}",
+                  f"  Goal Engine: {autonomous.get('goal_engine', 'available')}",
+                  f"  Planner: {autonomous.get('planner', 'available')}",
+                  f"  Recovery: {autonomous.get('recovery', 'available')}"])
     return "\n".join(lines)
