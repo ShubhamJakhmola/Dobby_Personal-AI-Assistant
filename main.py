@@ -79,6 +79,8 @@ from core                      import confirm as confirm_gate
 from core                      import audio_devices
 from core.action_loader        import discover_actions
 from agent.runtime             import AgentRuntime
+from agent.control_runtime      import ControlRuntime
+from computer.state             import get_state, update_state
 from core.echo                 import EchoGuard
 from core.viseme               import VisemeStream
 from core.wake_word            import (
@@ -617,6 +619,7 @@ class JarvisLive:
         # Gemini still proposes tool calls, but the local runtime owns the
         # capability boundary and validates discovered-action arguments first.
         self._agent_runtime = AgentRuntime(self._action_registry)
+        self._control_runtime = ControlRuntime(self._action_registry, player=self.ui)
 
         # Plugins must not collide with either an inline tool or a discovered action.
         _core_names = _inline_names | self._action_registry.names()
@@ -1242,13 +1245,14 @@ class JarvisLive:
                     args["file_path"] = self.ui.current_file
                 _ctx = {"player": self.ui, "speak": self.speak,
                         "response": None, "session_memory": None}
-                if name.startswith("computer_"):
-                    routed = await loop.run_in_executor(
-                        None, lambda: self._agent_runtime.execute_registered(name, args, context=_ctx)
-                    )
-                    r = json.dumps(routed, ensure_ascii=True)
-                else:
-                    r = await loop.run_in_executor(None, lambda: self._action_registry.run(name, args, _ctx))
+                # All discovered actions now pass through one local execution
+                # boundary. Gemini proposes; Dobby applies policy, executes,
+                # records the experience, updates current-world state and returns
+                # that state so follow-up commands can act on the same environment.
+                routed = await loop.run_in_executor(
+                    None, lambda: self._control_runtime.execute(name, args, context=_ctx, retries=1)
+                )
+                r = json.dumps(routed, ensure_ascii=True)
                 result = r or "Done."
                 # web_search: mirror results to the on-screen content panel
                 if (name == "web_search" and r
@@ -1548,6 +1552,13 @@ class JarvisLive:
                             full_in = " ".join(in_buf).strip()
                             if full_in:
                                 self._last_out_logged = ""   # new exchange
+                                # Keep the latest user goal in the current-world
+                                # state. Follow-up commands such as "pause it"
+                                # therefore remain tied to the active task.
+                                update_state(
+                                    task_goal=full_in,
+                                    task_id=f"turn-{int(time.time()*1000)}",
+                                )
                                 self.ui.write_log(f"You: {full_in}")
                                 self._session_log.append(f"User: {full_in}")
                                 if self._dashboard:

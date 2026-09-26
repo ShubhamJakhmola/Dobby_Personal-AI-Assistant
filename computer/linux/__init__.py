@@ -1,1 +1,0 @@
-"""Linux desktop adapters. Each optional backend reports unavailable explicitly."""
